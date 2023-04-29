@@ -1,0 +1,109 @@
+name: Main
+on: [push, pull_request]
+
+jobs:
+  typecheck:
+    name: 🏷️ TypeScript
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2.2.4
+        with:
+          version: 7
+
+      - name: Use NodeJs
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'pnpm'
+
+      - id: get-store-path
+        run: echo ::set-output name=STORE_PATH::$(pnpm store path)
+
+      - uses: actions/cache@v3
+        id: cache-pnpm-store
+        with:
+          path: ${{ steps.get-store-path.outputs.STORE_PATH }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-
+            pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: 📥 Download deps
+        run: pnpm install
+
+      - name: 🏷️ TypeScript check
+        run: pnpm ts
+
+      - uses: actions/cache@v3
+        env:
+          cache-name: cache-next-build
+        with:
+          path: ./*
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+
+  build:
+    name: 🚧 Build
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2.2.4
+        with:
+          version: 7
+
+      - name: Use NodeJs
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Restore next build
+        uses: actions/cache@v3
+        id: restore-build-cache
+        env:
+          cache-name: cache-next-build
+        with:
+          path: ./*
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+
+      - name: Build 🚧
+        run: pnpm build
+
+  eslint:
+    name: 🚨 ESLint
+    runs-on: ubuntu-latest
+    needs: typecheck
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2.2.4
+        with:
+          version: 7
+
+      - name: Use NodeJs
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Restore next build
+        uses: actions/cache@v3
+        id: restore-build-cache
+        env:
+          cache-name: cache-next-build
+        with:
+          path: ./*
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+
+      - name: 🚨 ESLint check
+        run: pnpm lint
